@@ -32,4 +32,25 @@ These additional references should also help you:
 
 https://springbootlearning.medium.com/using-micrometer-to-trace-your-spring-boot-app-1fe6ff9982ae
 
+### BD et produits à lancer
 
+Commande pour la BD MySQL :
+
+docker run --name monsql -p 3306:3306  -e MYSQL_ROOT_PASSWORD=my-secret-pw -e MYSQL_DATABASE=test -d mysql:oracle
+
+
+Commande pour la BD Mongo :
+
+docker run --name mongo -p 27017:27017 -e MONGO_INITDB_ROOT_USERNAME=root -e MONGO_INITDB_ROOT_PASSWORD=root -e MONGO_INITDB_DATABASE=banque_spring -d mongo:latest
+
+
+Commande pour zipkin :
+
+docker run -d -p 9411:9411 --name zipkin openzipkin/zipkin
+
+
+Commande pour Prometheus :
+
+brew install prometheus
+
+brew services start prometheus
