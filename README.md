@@ -36,12 +36,12 @@ https://springbootlearning.medium.com/using-micrometer-to-trace-your-spring-boot
 
 Commande pour la BD MySQL :
 
-docker run --name monsql -p 3306:3306  -e MYSQL_ROOT_PASSWORD=my-secret-pw -e MYSQL_DATABASE=test -d mysql:oracle
+docker run --name monsql_bq -p 3306:3306  -e MYSQL_ROOT_PASSWORD=my-secret-pw -e MYSQL_DATABASE=test -d mysql:oracle
 
 
 Commande pour la BD Mongo :
 
-docker run --name mongo -p 27017:27017 -e MONGO_INITDB_ROOT_USERNAME=root -e MONGO_INITDB_ROOT_PASSWORD=root -e MONGO_INITDB_DATABASE=banque_spring -d mongo:latest
+docker run --name mongo_bq -p 27017:27017 -e MONGO_INITDB_ROOT_USERNAME=root -e MONGO_INITDB_ROOT_PASSWORD=root -e MONGO_INITDB_DATABASE=banque_spring -d mongo:latest
 
 
 Commande pour zipkin :
@@ -51,6 +51,8 @@ docker run -d -p 9411:9411 --name zipkin openzipkin/zipkin
 
 Commande pour Prometheus :
 
-brew install prometheus
+docker run --name my-prometheus \
+--mount type=bind,source=/config-prometheus/prometheus.yml,destination=/etc/prometheus/prometheus.yml \
+-p 9090:9090 \
+prom/prometheus
 
-brew services start prometheus
