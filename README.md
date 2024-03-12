@@ -142,6 +142,210 @@ npm install && npm start
 
 ```
 
+Modifications Gateway :
+
+Ajouts de dépendances pour transformer la Gateway en serveur de ressources au sens Oauth et ajouter les classes de config pour Okta :
+
+```
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.okta.spring</groupId>
+            <artifactId>okta-spring-boot-starter</artifactId>
+            <version>3.0.6</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+```
+
+Ajout de la sécurité sur l'application :
+* Ajout de @EnableWebFluxSecurity pour activer la sécurité
+* Ajout d'un Bean de type SecurityWebFilterChain pour configurer la sécurité
+
+```
+
+@SpringBootApplication
+@EnableDiscoveryClient
+@EnableWebFluxSecurity
+public class AmcProxyApplication {
+
+    @Bean
+    public GlobalFilter customFilter() {
+        return new PreFilter();
+    }
 
 
 
+    public static void main(String[] args) {
+        SpringApplication.run(AmcProxyApplication.class, args);
+    }
+    
+
+    @Bean
+    SecurityWebFilterChain springSecurityFilterChain(ServerHttpSecurity http) {
+        http
+                .authorizeExchange(exchanges -> exchanges
+                        .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .anyExchange().authenticated()
+                )
+                .oauth2ResourceServer((oauth2) -> oauth2.jwt(Customizer.withDefaults()));
+        return http.build();
+    }
+
+
+}
+
+```
+
+Modification dans application.yml :
+* Ajout de CORS (ne marche pas pour le moment - WIP)
+* Ajout des URLs qui fournissent les jetons JWT :
+  security: oauth2: resourceserver: jwt:
+  issuer-uri: https://dev-nj3gclnzfe2tmzvt.us.auth0.com/
+  jwk-set-uri: https://dev-nj3gclnzfe2tmzvt.us.auth0.com/.well-known/jwks.json
+* Ajout des URLs pour Okta (fournisseur authentification et URL de l'appli elle même pour comparaison dans les jetons) :
+  okta: oauth2:
+  issuer: https://dev-nj3gclnzfe2tmzvt.us.auth0.com/
+  audience: http://localhost:10000
+
+
+
+```
+# Proprietes de l'application
+spring:
+  application:
+    name: apigateway                                   # nom de l'application
+  cloud:
+    # Configuration de l'API Gateway
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "http://localhost:4200"
+            allowedMethods:
+              - GET
+              - POST
+              - DELETE
+              - PUT
+              - PATCH
+              - OPTIONS
+        add-to-simple-url-handler-mapping: true
+      discovery:
+        locator:
+          enabled: true #activation eureka locator
+          lowerCaseServiceId: true
+          # car le nom des services est en minuscule dans l'URL
+      # Configuration des routes de l'API Gateway
+      routes:
+        #Service CLIENTS-SERVICE
+        - id: client-service
+          uri: lb://amcclients/ #Attention : lb et pas HTTP. Lb est prêt pour faire du load-balancing
+          predicates:
+            # On matche tout ce qui commence par /api/clients
+            - Path=/api/clients/**
+          filters:
+            # On va réécrire l'URL pour enlever le /api/client
+            - RewritePath=/api/clients(?<segment>/?.*), /$\{segment}
+          metadata:
+            cors:
+              allowedOrigins: '*'
+              allowedMethods:
+                - GET
+                - POST
+              allowedHeaders: '*'
+              maxAge: 30
+        #Service COMPTES-SERVICE
+        - id: comptes-service
+          uri: lb://amccomptes/
+          predicates:
+            - Path=/api/comptes/**
+          filters:
+            - RewritePath=/api/comptes(?<segment>/?.*), /$\{segment}
+        #Service CLIENTS-COMPTES
+        - id: clients-comptes
+          uri: lb://amccomposite/
+          predicates:
+            - Path=/api/clientscomptes/**
+          filters:
+            - RewritePath=/api/clientscomptes(?<segment>/?.*), /$\{segment}
+      enabled: on # Activation gateway
+    # Activation remontée management dans Eureka
+    config:
+      service-registry:
+        auto-registration:
+          register-management: on
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://dev-nj3gclnzfe2tmzvt.us.auth0.com/
+          jwk-set-uri: https://dev-nj3gclnzfe2tmzvt.us.auth0.com/.well-known/jwks.json
+
+# Activation des endpoints pour le monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          env,health,
+          info,metrics,
+          loggers,mappings, prometheus
+  tracing:
+    sampling:
+      probability: 1.0
+  zipkin:
+    tracing:
+      endpoint: http://banque-zipkin:9411/api/v2/spans
+# Configuration client de l'annuaire
+# L'API Gateway va s'enregistrer comme un micro-service sur l'annuaire
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://banque-annuaire:10001/eureka/ # url d'accès à l'annuaire
+  instance:
+    metadata-map:
+      prometheus.scrape: "true"
+      prometheus.path: "/actuator/prometheus"
+      prometheus.port: "${management.server.port}"
+      #    instance:
+      #      metadataMap:
+      # on va surcharger le nom de l'application si plusieurs instances de l'API Gateway ont même IP et même port
+      # on surcharge par une valeur random si le nom de l'instance existe déjà.
+#        instanceId: ${spring.application.name}:${spring.application.instance_id:${random.value}}
+
+
+# Configuration du log.
+logging:
+  level:
+    org.springframework.web: INFO # Choix du niveau de log affiché
+#    org.springframework.cloud.gateway: DEBUG # pour avoir plus d'infos sur le gateway
+#    reactor.netty.http.client: DEBUG # pour avoir plus d'infos sur les appels HTTP
+
+# Proprietes du serveur d'entreprise
+server:
+  port: 10000   # HTTP (Tomcat) port
+
+okta:
+  oauth2:
+    issuer: https://dev-nj3gclnzfe2tmzvt.us.auth0.com/
+    audience: http://localhost:10000
+
+
+
+```
+
+Fonctionnement :
+* S'authentifier avec l'appli Angular
+* Avec les outils de dev du navigateur récupérer le jeton : Authorisation: Bearer XXXXXX
+* Copier le jeton d'authentification dans le plugin du navigateur et l'utiliser pour vos requêtes
+
+A suivre : 
+* modifier l'application Angular pour utiliser l'API Gateway et résoudre le problème de CORS
+* faire héberger l'application Angular par docker pour qu'elle se trouve derrière la Gateway (plus de problème de CORS)
