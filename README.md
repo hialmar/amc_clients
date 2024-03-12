@@ -56,3 +56,92 @@ docker run --name my-prometheus \
 -p 9090:9090 \
 prom/prometheus
 
+### Sécurisation avec Okta
+
+On va utiliser le produit Auth0 de la société Okta.
+C'est un outil qui permet de faire de l'IAM (Identity and Access Management) dans le Cloud.
+En gros leur plateforme gère l'essentiel : authentification, identification, autorisation, droits d'accès, utilisateur, rôles...
+
+Première étape : créer un compte développeur gratuit sur https://developer.okta.com/signup/.
+
+Attention : bien choisir "Customer Identity Cloud" qui va vous amener sur l'outil Auth0.
+
+Une fois le compte créé (vous pouvez utiliser votre compte GitHub, Google ou Microsoft) il faut créer une application.
+On va choisir une application SPA (Single Page Application).
+
+Une fois l'application créée on vous propose de récupérer un template d'application front écrite avec Angular (ou autre techno).
+
+Choisissons de l'Angular.
+
+Vu que nous n'avons pas encore d'application front on va choisir "I want to explore a sample app".
+
+Attention : il s'agit du deuxième bouton bleu (celui qui vous donne une application pré-configurée).
+
+Comme l'indique la page de téléchargement, il va falloir ajouter l'URL de développement classique de ng serve http://localhost:4200 pour qu'elle puisse :
+* Servir d'URL Callback (sur laquelle on va pouvoir re-diriger un utilisateur une fois identifié) ;
+* Servir d'URL Logout (sur laquelle on va pouvoir re-diriger un utilisateur une fois déconnecté) ;
+* Être référencée comme Origine Web (pour gérer l'authentification multi sites sans qu'on puisse récupérer les données d'authentification sur n'importe quel site)
+
+On fait tout ça dans la page Settings de l'application.
+
+Dans la page Connections, on peut activer ou désactiver les connections OpenID avec GitHub, Google...
+
+Une fois récupéré le projet Web vous y allez trouver un fichier auth_config.json qui est ignoré par GitHub (vu qu'il va contenir des infos confidentielles).
+Voilà ce qu'il contient par défaut :
+
+```
+{
+"domain": "VOTRE DOMAINE.us.auth0.com",
+"clientId": "VOTRE ID CLIENT",
+"authorizationParams": {
+"audience": "{yourApiIdentifier}"
+},
+"apiUri": "http://localhost:3001",
+"appUri": "http://localhost:4200",
+"errorPath": "/error"
+}
+```
+
+Les infos domain et clientId ont été initialisées automatiquement et correspondent à ce qui est affiché sur la page Settings sur le site Auth0.
+
+Il va falloir maintenant modifier audience et apiUri pour y indiquer les infos de votre application Spring.
+
+Attention : ne pas oublier de modifier apiUri !!!
+
+On va indiquer, pour les deux, les infos d'amc_proxy (mon projet correspondant à la Gateway) : http://localhost:10000
+
+Note : pour tester, vous pouvez aussi sécuriser amc_clients (service clients), amc_comptes (service comptes)... mais normalement tout doit passer par la Gateway.
+
+Attention : il ne faut surtout pas inclure le / à la fin de l'URL.
+
+Donc votre fichier doit se finir comme suit :
+
+```
+...
+"authorizationParams": {
+"audience": "http://localhost:10000"
+},
+"apiUri": "http://localhost:10000",
+"appUri": "http://localhost:4200",
+"errorPath": "/error"
+}
+```
+
+Une fois ces modifications faites, on va déclarer l'API sur le serveur Auth0 :
+* Sur la gauche vous allez trouver un menu Applications avec un sous-menu API ;
+* Cliquez sur API puis "Create API" ;
+* Indiquez le nom que vous voulez puis http://localhost:10000
+* Laissez le reste tel quel
+
+Ensuite nous allons configurer cette API 
+
+On peut ensuite lancer l'application une première fois en faisant le classique :
+
+```
+npm install && npm start
+
+```
+
+
+
+
