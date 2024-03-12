@@ -1,7 +1,7 @@
 # Proprietes de l'application
 spring:
   application:
-    name: amccomposite
+    name: amcclients
   profiles:
     active: dev
   data:
