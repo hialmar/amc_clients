@@ -86,7 +86,10 @@ On fait tout ça dans la page Settings de l'application.
 
 Dans la page Connections, on peut activer ou désactiver les connections OpenID avec GitHub, Google...
 
-Une fois récupéré le projet Web vous y allez trouver un fichier auth_config.json qui est ignoré par GitHub (vu qu'il va contenir des infos confidentielles).
+#### Modification du front partie 1 :
+
+Une fois récupéré le projet Web, vous y allez trouver un fichier auth_config.json 
+qui est ignoré par GitHub (vu qu'il va contenir des infos confidentielles).
 Voilà ce qu'il contient par défaut :
 
 ```
@@ -142,7 +145,7 @@ npm install && npm start
 
 ```
 
-Modifications Gateway :
+#### Modifications Gateway :
 
 Ajouts de dépendances pour transformer la Gateway en serveur de ressources au sens Oauth et ajouter les classes de config pour Okta :
 
@@ -165,7 +168,7 @@ Ajouts de dépendances pour transformer la Gateway en serveur de ressources au s
         </dependency>
 ```
 
-Ajout de la sécurité sur l'application :
+##### Ajout de la sécurité sur l'application :
 * Ajout de @EnableWebFluxSecurity pour activer la sécurité
 * Ajout d'un Bean de type SecurityWebFilterChain pour configurer la sécurité
 
@@ -173,7 +176,7 @@ Ajout de la sécurité sur l'application :
 
 @SpringBootApplication
 @EnableDiscoveryClient
-@EnableWebFluxSecurity
+@EnableWebFluxSecurity // ICI
 public class AmcProxyApplication {
 
     @Bean
@@ -188,6 +191,7 @@ public class AmcProxyApplication {
     }
     
 
+    // ET LA
     @Bean
     SecurityWebFilterChain springSecurityFilterChain(ServerHttpSecurity http) {
         http
@@ -204,8 +208,9 @@ public class AmcProxyApplication {
 
 ```
 
-Modification dans application.yml :
-* Ajout de CORS (ne marche pas pour le moment - WIP)
+##### Modification dans application.yml :
+
+* Ajout de CORS (voir plus bas si vous passez par le serveur de configuration)
 * Ajout des URLs qui fournissent les jetons JWT :
   security: oauth2: resourceserver: jwt:
   issuer-uri: https://dev-nj3gclnzfe2tmzvt.us.auth0.com/
@@ -341,12 +346,16 @@ okta:
 
 ```
 
-Fonctionnement :
+##### Fonctionnement :
 * S'authentifier avec l'appli Angular
 * Avec les outils de dev du navigateur récupérer le jeton : Authorisation: Bearer XXXXXX
 * Copier le jeton d'authentification dans le plugin du navigateur et l'utiliser pour vos requêtes
 
-Pour que le CORS fonctionne, il faut, apparemment, mettre les propriétés dans le ficher application.yml initial (avant la récupération via le config server).
+
+##### Problème de CORS en passant par le serveur de configurations
+
+Pour que le CORS fonctionne, il faut, apparemment, mettre les propriétés dans
+le fichier application.yml initial (avant la récupération via le config server).
 
 Voilà le contenu du fichier application.yml :
 ```
@@ -390,6 +399,8 @@ okta:
 
 ```
 
+##### Modification du front partie 2
+
 Pour vérifier que ça marche, dans le fichier src/app/api.service.ts 
 de l'application Angular, on peut appeler le endpoint /api/clients :
 
@@ -418,5 +429,46 @@ src/app/pages/external-api/external-api-component.html :
   </p>
 ```
 
+##### Ajout du front dans le docker-compose
+
+L'application que vous avez récupéré contient déjà un Dockerfile.
+
+Il suffit donc d'ajouter le service dans le fichier compose :
+
+```
+
+  # Front Angular
+  banque-front:
+    # Lancement service de gateway
+    build:
+      context: amc_front # Répertoire (dans répertoire courant) contenant le dockerfile
+      dockerfile: Dockerfile
+    image: banque-front:8.0 # Pour placer le TAG de version sur le nom de l'image
+    ports:
+      - "4200:4200" # Exposition port 4200 (à virer pour passer par Gateway)
+    restart: "no"
+    container_name: bnkfront
+    depends_on:
+      - banque-apigateway
+    networks:
+      - backend
+    environment:
+      WAIT_HOSTS: bnkapigateway:10000  # Attente demarrage services (attente 30s MAX)
+
+
+```
+
+Une fois le conteneur déployé, on peut, pour l'instant, accéder au front via le port 
+dédié : 4200 : http://localhost:4200
+
+Si vous avez des problèmes avec des images de profil 
+(notamment celles venant de github) il faut modifier le fichier server.js
+du front. Dans la partie directives de contentSecurityPolicy :
+
+```
+        'img-src': ["'self'", 'data:', '*.gravatar.com', 'avatars.githubusercontent.com'],
+```
+
 A suivre : 
-* faire héberger l'application Angular par docker pour qu'elle se trouve derrière la Gateway (plus de problème de CORS)
+* faire en sorte que l'application Angular hébergée par docker se trouve derrière 
+la Gateway (il n'y aura donc plus de problème de CORS)
