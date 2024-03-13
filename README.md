@@ -346,6 +346,77 @@ Fonctionnement :
 * Avec les outils de dev du navigateur récupérer le jeton : Authorisation: Bearer XXXXXX
 * Copier le jeton d'authentification dans le plugin du navigateur et l'utiliser pour vos requêtes
 
+Pour que le CORS fonctionne, il faut, apparemment, mettre les propriétés dans le ficher application.yml initial (avant la récupération via le config server).
+
+Voilà le contenu du fichier application.yml :
+```
+# Proprietes de l'application
+spring:
+  application:
+    name: apigateway
+  profiles:
+    active: dev
+  # Adresse du service de configuration
+  config:
+    # SANS DOCKER COMPOSE
+    # import: optional:configserver:http://localhost:10003
+    # AVEC DOCKER COMPOSE
+    import: optional:configserver:http://bnkconfigsrv:10003
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://dev-nj3gclnzfe2tmzvt.us.auth0.com/
+          jwk-set-uri: https://dev-nj3gclnzfe2tmzvt.us.auth0.com/.well-known/jwks.json
+  cloud:
+    # Configuration de l'API Gateway
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "http://localhost:4200"
+            allowedMethods:
+              - GET
+              - POST
+              - DELETE
+              - PUT
+              - PATCH
+              - OPTIONS
+        add-to-simple-url-handler-mapping: true
+okta:
+  oauth2:
+    issuer: https://dev-nj3gclnzfe2tmzvt.us.auth0.com/
+    audience: http://localhost:10000
+
+```
+
+Pour vérifier que ça marche, dans le fichier src/app/api.service.ts 
+de l'application Angular, on peut appeler le endpoint /api/clients :
+
+```
+  ping$() {
+    return this.http.get(`${config.apiUri}/api/clients`);
+  }
+```
+
+On peut aussi changer les numéros de ports indiqués dans le fichier 
+src/app/pages/external-api/external-api-component.html :
+
+```
+  <div *ngIf="hasApiError" class="alert alert-danger" role="alert">
+    An error occured when trying to call the local API on port 10000. Ensure the local API is started using either `npm run dev` or `npm run
+    server:api`.
+  </div>
+
+  <p class="lead">Ping an external API by clicking the button below.</p>
+
+  <p>
+    This will call a local API on port 10000 that would have been started if you
+    run <code>npm run dev</code> (or <code>npm run server:api</code>). An access token is sent as part of the
+    request's `Authorization` header and the API will validate it using the
+    API's audience value.
+  </p>
+```
+
 A suivre : 
-* modifier l'application Angular pour utiliser l'API Gateway et résoudre le problème de CORS
 * faire héberger l'application Angular par docker pour qu'elle se trouve derrière la Gateway (plus de problème de CORS)
