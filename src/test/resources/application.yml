@@ -13,3 +13,8 @@ spring:
   cloud:
     config:
       enabled: false
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: test
